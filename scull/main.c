@@ -389,7 +389,7 @@ ssize_t scull_write(struct file *filp, const char __user *buf, size_t count,
  * The ioctl() implementation
  */
 
-int scull_ioctl(struct inode *inode, struct file *filp,
+long scull_ioctl(struct file *filp,
                  unsigned int cmd, unsigned long arg)
 {
 
@@ -552,7 +552,11 @@ struct file_operations scull_fops = {
 	.llseek =   scull_llseek,
 	.read =     scull_read,
 	.write =    scull_write,
+#if 0
 	.ioctl =    scull_ioctl,
+#else
+	.unlocked_ioctl =    scull_ioctl,
+#endif
 	.open =     scull_open,
 	.release =  scull_release,
 };
@@ -648,7 +652,11 @@ int scull_init_module(void)
 	for (i = 0; i < scull_nr_devs; i++) {
 		scull_devices[i].quantum = scull_quantum;
 		scull_devices[i].qset = scull_qset;
+#if 0
 		init_MUTEX(&scull_devices[i].sem);
+#else
+		sema_init(&scull_devices[i].sem, 1);
+#endif
 		scull_setup_cdev(&scull_devices[i], i);
 	}
 
