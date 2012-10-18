@@ -46,7 +46,7 @@ static int ldd_hotplug(struct device *dev, char **envp, int num_envp,
  */
 static int ldd_match(struct device *dev, struct device_driver *driver)
 {
-	return !strncmp(dev->bus_id, driver->name, strlen(driver->name));
+	return !strncmp(dev_name(dev), driver->name, strlen(driver->name));
 }
 
 
