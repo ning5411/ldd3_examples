@@ -19,7 +19,7 @@
 #include <linux/slab.h>
 #include <linux/module.h>
 #include <linux/kref.h>
-#include <linux/smp_lock.h>
+#include <linux/smp.h>
 #include <linux/usb.h>
 #include <asm/uaccess.h>
 
@@ -27,6 +27,8 @@
 /* Define these values to match your devices */
 #define USB_SKEL_VENDOR_ID	0xfff0
 #define USB_SKEL_PRODUCT_ID	0xfff0
+
+static DEFINE_SPINLOCK(usb_lock);
 
 /* table of devices that work with this driver */
 static struct usb_device_id skel_table [] = {
@@ -133,7 +135,7 @@ static ssize_t skel_read(struct file *file, char __user *buffer, size_t count, l
 	return retval;
 }
 
-static void skel_write_bulk_callback(struct urb *urb, struct pt_regs *regs)
+static void skel_write_bulk_callback(struct urb *urb)
 {
 	/* sync/async unlink faults aren't errors */
 	if (urb->status && 
@@ -145,7 +147,7 @@ static void skel_write_bulk_callback(struct urb *urb, struct pt_regs *regs)
 	}
 
 	/* free up our allocated buffer */
-	usb_buffer_free(urb->dev, urb->transfer_buffer_length, 
+	usb_free_coherent(urb->dev, urb->transfer_buffer_length, 
 			urb->transfer_buffer, urb->transfer_dma);
 }
 
@@ -169,7 +171,7 @@ static ssize_t skel_write(struct file *file, const char __user *user_buffer, siz
 		goto error;
 	}
 
-	buf = usb_buffer_alloc(dev->udev, count, GFP_KERNEL, &urb->transfer_dma);
+	buf = usb_alloc_coherent(dev->udev, count, GFP_KERNEL, &urb->transfer_dma);
 	if (!buf) {
 		retval = -ENOMEM;
 		goto error;
@@ -199,7 +201,7 @@ exit:
 	return count;
 
 error:
-	usb_buffer_free(dev->udev, count, buf, urb->transfer_dma);
+	usb_free_coherent(dev->udev, count, buf, urb->transfer_dma);
 	usb_free_urb(urb);
 	kfree(buf);
 	return retval;
@@ -220,7 +222,7 @@ static struct file_operations skel_fops = {
 static struct usb_class_driver skel_class = {
 	.name = "usb/skel%d",
 	.fops = &skel_fops,
-	.mode = S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH,
+	//.mode = S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH,
 	.minor_base = USB_SKEL_MINOR_BASE,
 };
 
@@ -292,7 +294,7 @@ static int skel_probe(struct usb_interface *interface, const struct usb_device_i
 	}
 
 	/* let the user know what node this device is now attached to */
-	info("USB Skeleton device now attached to USBSkel-%d", interface->minor);
+	printk("USB Skeleton device now attached to USBSkel-%d", interface->minor);
 	return 0;
 
 error:
@@ -307,7 +309,7 @@ static void skel_disconnect(struct usb_interface *interface)
 	int minor = interface->minor;
 
 	/* prevent skel_open() from racing skel_disconnect() */
-	lock_kernel();
+	spin_lock(&usb_lock);
 
 	dev = usb_get_intfdata(interface);
 	usb_set_intfdata(interface, NULL);
@@ -315,16 +317,15 @@ static void skel_disconnect(struct usb_interface *interface)
 	/* give back our minor */
 	usb_deregister_dev(interface, &skel_class);
 
-	unlock_kernel();
+	spin_unlock(&usb_lock);
 
 	/* decrement our usage count */
 	kref_put(&dev->kref, skel_delete);
 
-	info("USB Skeleton #%d now disconnected", minor);
+	printk("USB Skeleton #%d now disconnected", minor);
 }
 
 static struct usb_driver skel_driver = {
-	.owner = THIS_MODULE,
 	.name = "skeleton",
 	.id_table = skel_table,
 	.probe = skel_probe,
