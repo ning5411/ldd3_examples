@@ -1,2 +1,15 @@
 code can be downloaded from the following URL:
 http://www.oreilly.com.cn/codeexample/ldd3/examples.tar.gz
+
+all the code is tested on Ubuntu 12.04.1
+
+detailed information:
+uname -r
+3.2.0-32-generic-pae
+
+lsb_release -a
+No LSB modules are available.
+Distributor ID:	Ubuntu
+Description:	Ubuntu 12.04.1 LTS
+Release:	12.04
+Codename:	precise
