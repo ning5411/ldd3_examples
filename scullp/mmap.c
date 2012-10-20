@@ -17,12 +17,15 @@
 
 #include <linux/module.h>
 
+#include <linux/semaphore.h>
 #include <linux/mm.h>		/* everything */
 #include <linux/errno.h>	/* error codes */
+#include <linux/fs.h>
 #include <asm/pgtable.h>
 
 #include "scullp.h"		/* local definitions */
 
+#define NOPAGE_SIGBUS   (NULL)
 
 /*
  * open and close: just keep track of how many times the device is
@@ -96,7 +99,7 @@ struct page *scullp_vma_nopage(struct vm_area_struct *vma,
 struct vm_operations_struct scullp_vm_ops = {
 	.open =     scullp_vma_open,
 	.close =    scullp_vma_close,
-	.nopage =   scullp_vma_nopage,
+	//.nopage =   scullp_vma_nopage,
 };
 
 
