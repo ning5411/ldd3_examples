@@ -279,8 +279,7 @@ ssize_t sculld_write (struct file *filp, const char __user *buf, size_t count,
  * The ioctl() implementation
  */
 
-int sculld_ioctl (struct inode *inode, struct file *filp,
-                 unsigned int cmd, unsigned long arg)
+long sculld_ioctl (struct file *filp, unsigned int cmd, unsigned long arg)
 {
 
 	int err = 0, ret = 0, tmp;
@@ -414,7 +413,7 @@ struct async_work {
 /*
  * "Complete" an asynchronous operation.
  */
-static void sculld_do_deferred_op(void *p)
+static void sculld_do_deferred_op(struct work_struct *p)
 {
 	struct async_work *stuff = (struct async_work *) p;
 	aio_complete(stuff->iocb, stuff->result, 0);
@@ -425,7 +424,7 @@ static void sculld_do_deferred_op(void *p)
 static int sculld_defer_op(int write, struct kiocb *iocb, char __user *buf,
 		size_t count, loff_t pos)
 {
-	struct async_work *stuff;
+	struct delayed_work *stuff;
 	int result;
 
 	/* Copy now while we can access the buffer */
@@ -442,23 +441,35 @@ static int sculld_defer_op(int write, struct kiocb *iocb, char __user *buf,
 	stuff = kmalloc (sizeof (*stuff), GFP_KERNEL);
 	if (stuff == NULL)
 		return result; /* No memory, just complete now */
-	stuff->iocb = iocb;
-	stuff->result = result;
-	INIT_WORK(&stuff->work, sculld_do_deferred_op, stuff);
-	schedule_delayed_work(&stuff->work, HZ/100);
+	//stuff->iocb = iocb;
+	//stuff->result = result;
+	INIT_DELAYED_WORK(stuff, sculld_do_deferred_op);
+	schedule_delayed_work(stuff, HZ/100);
 	return -EIOCBQUEUED;
 }
 
 
-static ssize_t sculld_aio_read(struct kiocb *iocb, char __user *buf, size_t count,
+static ssize_t sculld_aio_read(struct kiocb *iocb, const struct iovec *iov, unsigned long count,
 		loff_t pos)
 {
+	char *buf;
+
+	buf = kmalloc(iocb->ki_left, GFP_KERNEL);
+	if (unlikely(!buf))
+		return -ENOMEM;
+
 	return sculld_defer_op(0, iocb, buf, count, pos);
 }
 
-static ssize_t sculld_aio_write(struct kiocb *iocb, const char __user *buf,
-		size_t count, loff_t pos)
+static ssize_t sculld_aio_write(struct kiocb *iocb, const struct iovec *iov,
+		unsigned long count, loff_t pos)
 {
+	char *buf;
+
+	buf = kmalloc(iocb->ki_left, GFP_KERNEL);
+	if (unlikely(!buf))
+		return -ENOMEM;
+
 	return sculld_defer_op(1, iocb, (char __user *) buf, count, pos);
 }
 
@@ -479,7 +490,7 @@ struct file_operations sculld_fops = {
 	.llseek =    sculld_llseek,
 	.read =	     sculld_read,
 	.write =     sculld_write,
-	.ioctl =     sculld_ioctl,
+	.unlocked_ioctl =     sculld_ioctl,
 	.mmap =	     sculld_mmap,
 	.open =	     sculld_open,
 	.release =   sculld_release,
@@ -531,9 +542,10 @@ static void sculld_setup_cdev(struct sculld_dev *dev, int index)
 		printk(KERN_NOTICE "Error %d adding scull%d", err, index);
 }
 
-static ssize_t sculld_show_dev(struct device *ddev, char *buf)
+static ssize_t sculld_show_dev(struct device *ddev,
+		struct device_attribute *attr, char *buf)
 {
-	struct sculld_dev *dev = ddev->driver_data;
+	struct sculld_dev *dev = dev_get_drvdata(ddev);
 
 	return print_dev_t(buf, dev->cdev.dev);
 }
@@ -545,7 +557,8 @@ static void sculld_register_dev(struct sculld_dev *dev, int index)
 	sprintf(dev->devname, "sculld%d", index);
 	dev->ldev.name = dev->devname;
 	dev->ldev.driver = &sculld_driver;
-	dev->ldev.dev.driver_data = dev;
+	dev_set_drvdata(&dev->ldev.dev, dev);
+	//dev->ldev.dev.driver_data = dev;
 	register_ldd_device(&dev->ldev);
 	device_create_file(&dev->ldev.dev, &dev_attr_dev);
 }
