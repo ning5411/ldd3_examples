@@ -270,8 +270,7 @@ ssize_t scullv_write (struct file *filp, const char __user *buf, size_t count,
  * The ioctl() implementation
  */
 
-int scullv_ioctl (struct inode *inode, struct file *filp,
-                 unsigned int cmd, unsigned long arg)
+long scullv_ioctl (struct file *filp, unsigned int cmd, unsigned long arg)
 {
 
 	int err = 0, ret = 0, tmp;
@@ -405,9 +404,9 @@ struct async_work {
 /*
  * "Complete" an asynchronous operation.
  */
-static void scullv_do_deferred_op(void *p)
+static void scullv_do_deferred_op(struct work_struct *work)
 {
-	struct async_work *stuff = (struct async_work *) p;
+	struct async_work *stuff = (struct async_work *)work;
 	aio_complete(stuff->iocb, stuff->result, 0);
 	kfree(stuff);
 }
@@ -416,7 +415,7 @@ static void scullv_do_deferred_op(void *p)
 static int scullv_defer_op(int write, struct kiocb *iocb, char __user *buf,
 		size_t count, loff_t pos)
 {
-	struct async_work *stuff;
+	struct delayed_work *stuff;
 	int result;
 
 	/* Copy now while we can access the buffer */
@@ -433,23 +432,35 @@ static int scullv_defer_op(int write, struct kiocb *iocb, char __user *buf,
 	stuff = kmalloc (sizeof (*stuff), GFP_KERNEL);
 	if (stuff == NULL)
 		return result; /* No memory, just complete now */
-	stuff->iocb = iocb;
-	stuff->result = result;
-	INIT_WORK(&stuff->work, scullv_do_deferred_op, stuff);
-	schedule_delayed_work(&stuff->work, HZ/100);
+	//stuff->iocb = iocb;
+	//stuff->result = result;
+	INIT_DELAYED_WORK(stuff, scullv_do_deferred_op);
+	schedule_delayed_work(stuff, HZ/100);
 	return -EIOCBQUEUED;
 }
 
 
-static ssize_t scullv_aio_read(struct kiocb *iocb, char __user *buf, size_t count,
-		loff_t pos)
+static ssize_t scullv_aio_read(struct kiocb *iocb, const struct iovec *iov,
+		unsigned long count, loff_t pos)
 {
+	char *buf;
+
+	buf = kmalloc(iocb->ki_left, GFP_KERNEL);
+	if (unlikely(!buf))
+		return -ENOMEM;
+
 	return scullv_defer_op(0, iocb, buf, count, pos);
 }
 
-static ssize_t scullv_aio_write(struct kiocb *iocb, const char __user *buf,
-		size_t count, loff_t pos)
+static ssize_t scullv_aio_write(struct kiocb *iocb, const struct iovec *iov,
+		unsigned long count, loff_t pos)
 {
+	char *buf;
+
+	buf = kmalloc(iocb->ki_left, GFP_KERNEL);
+	if (unlikely(!buf))
+		return -ENOMEM;
+
 	return scullv_defer_op(1, iocb, (char __user *) buf, count, pos);
 }
 
@@ -470,7 +481,7 @@ struct file_operations scullv_fops = {
 	.llseek =    scullv_llseek,
 	.read =	     scullv_read,
 	.write =     scullv_write,
-	.ioctl =     scullv_ioctl,
+	.unlocked_ioctl =     scullv_ioctl,
 	.mmap =	     scullv_mmap,
 	.open =	     scullv_open,
 	.release =   scullv_release,
