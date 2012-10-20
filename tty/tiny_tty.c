@@ -18,6 +18,7 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/wait.h>
+#include <linux/sched.h>
 #include <linux/tty.h>
 #include <linux/tty_driver.h>
 #include <linux/tty_flip.h>
@@ -33,6 +34,8 @@
 MODULE_AUTHOR( DRIVER_AUTHOR );
 MODULE_DESCRIPTION( DRIVER_DESC );
 MODULE_LICENSE("GPL");
+
+#define TTY_FLIPBUF_SIZE 512
 
 #define DELAY_TIME		HZ * 2	/* 2 seconds per character */
 #define TINY_DATA_CHARACTER	't'
@@ -104,7 +107,7 @@ static int tiny_open(struct tty_struct *tty, struct file *file)
 		if (!tiny)
 			return -ENOMEM;
 
-		init_MUTEX(&tiny->sem);
+		sema_init(&tiny->sem, 1);
 		tiny->open_count = 0;
 		tiny->timer = NULL;
 
@@ -224,7 +227,7 @@ exit:
 
 #define RELEVANT_IFLAG(iflag) ((iflag) & (IGNBRK|BRKINT|IGNPAR|PARMRK|INPCK))
 
-static void tiny_set_termios(struct tty_struct *tty, struct termios *old_termios)
+static void tiny_set_termios(struct tty_struct *tty, struct ktermios *old_termios)
 {
 	unsigned int cflag;
 
@@ -528,8 +531,9 @@ static int __init tiny_init(void)
 	tiny_tty_driver->owner = THIS_MODULE;
 	tiny_tty_driver->driver_name = "tiny_tty";
 	tiny_tty_driver->name = "ttty";
-	tiny_tty_driver->devfs_name = "tts/ttty%d";
+	//tiny_tty_driver->devfs_name = "tts/ttty%d";
 	tiny_tty_driver->major = TINY_TTY_MAJOR,
+	tiny_tty_driver->minor_start = 64,
 	tiny_tty_driver->type = TTY_DRIVER_TYPE_SERIAL,
 	tiny_tty_driver->subtype = SERIAL_TYPE_NORMAL,
 	tiny_tty_driver->flags = TTY_DRIVER_REAL_RAW | TTY_DRIVER_DYNAMIC_DEV,
@@ -540,7 +544,7 @@ static int __init tiny_init(void)
 	/* hack to make the book purty, yet still use these functions in the
 	 * real driver.  They really should be set up in the serial_ops
 	 * structure above... */
-	tiny_tty_driver->read_proc = tiny_read_proc;
+	/* tiny_tty_driver->read_proc = tiny_read_proc; */
 	tiny_tty_driver->tiocmget = tiny_tiocmget;
 	tiny_tty_driver->tiocmset = tiny_tiocmset;
 	tiny_tty_driver->ioctl = tiny_ioctl;
