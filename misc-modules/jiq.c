@@ -51,9 +51,7 @@ module_param(delay, long, 0);
  */
 static DECLARE_WAIT_QUEUE_HEAD (jiq_wait);
 
-
-static struct work_struct jiq_work;
-
+static struct delayed_work jiq_work;
 
 
 /*
@@ -110,7 +108,7 @@ static int jiq_print(void *ptr)
 /*
  * Call jiq_print from a work queue
  */
-static void jiq_print_wq(void *ptr)
+static void jiq_print_wq(struct work_struct *ptr)
 {
 	struct clientdata *data = (struct clientdata *) ptr;
     
@@ -120,7 +118,7 @@ static void jiq_print_wq(void *ptr)
 	if (data->delay)
 		schedule_delayed_work(&jiq_work, data->delay);
 	else
-		schedule_work(&jiq_work);
+		schedule_work(&jiq_work.work);
 }
 
 
@@ -136,7 +134,7 @@ static int jiq_read_wq(char *buf, char **start, off_t offset,
 	jiq_data.delay = 0;
     
 	prepare_to_wait(&jiq_wait, &wait, TASK_INTERRUPTIBLE);
-	schedule_work(&jiq_work);
+	schedule_work(&jiq_work.work);
 	schedule();
 	finish_wait(&jiq_wait, &wait);
 
@@ -240,7 +238,7 @@ static int jiq_init(void)
 {
 
 	/* this line is in jiq_init() */
-	INIT_WORK(&jiq_work, jiq_print_wq, &jiq_data);
+	INIT_DELAYED_WORK(&jiq_work, jiq_print_wq);
 
 	create_proc_read_entry("jiqwq", 0, NULL, jiq_read_wq, NULL);
 	create_proc_read_entry("jiqwqdelay", 0, NULL, jiq_read_wq_delayed, NULL);
