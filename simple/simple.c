@@ -31,6 +31,8 @@
 
 #include <linux/device.h>
 
+#define NOPAGE_SIGBUS   (NULL)
+
 static int simple_major = 0;
 module_param(simple_major, int, 0);
 MODULE_AUTHOR("Jonathan Corbet");
@@ -124,7 +126,7 @@ struct page *simple_vma_nopage(struct vm_area_struct *vma,
 static struct vm_operations_struct simple_nopage_vm_ops = {
 	.open =   simple_vma_open,
 	.close =  simple_vma_close,
-	.nopage = simple_vma_nopage,
+	//.nopage = simple_vma_nopage,
 };
 
 static int simple_nopage_mmap(struct file *filp, struct vm_area_struct *vma)
