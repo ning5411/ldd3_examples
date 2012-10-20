@@ -449,8 +449,8 @@ static int sculld_defer_op(int write, struct kiocb *iocb, char __user *buf,
 }
 
 
-static ssize_t sculld_aio_read(struct kiocb *iocb, const struct iovec *iov, unsigned long count,
-		loff_t pos)
+static ssize_t sculld_aio_read(struct kiocb *iocb, const struct iovec *iov,
+		unsigned long count, loff_t pos)
 {
 	char *buf;
 
@@ -484,7 +484,6 @@ extern int sculld_mmap(struct file *filp, struct vm_area_struct *vma);
 /*
  * The fops
  */
-
 struct file_operations sculld_fops = {
 	.owner =     THIS_MODULE,
 	.llseek =    sculld_llseek,
