@@ -78,7 +78,8 @@ static void tiny_timer(unsigned long timer_data)
 	/* send the data to the tty layer for users to read.  This doesn't
 	 * actually push the data through unless tty->low_latency is set */
 	for (i = 0; i < data_size; ++i) {
-		if (tty->flip.count >= TTY_FLIPBUF_SIZE)
+		//if (tty->flip.count >= TTY_FLIPBUF_SIZE)
+		if (tty->count >= TTY_FLIPBUF_SIZE)
 			tty_flip_buffer_push(tty);
 		tty_insert_flip_char(tty, data[i], TTY_NORMAL);
 	}
@@ -316,7 +317,7 @@ static void tiny_set_termios(struct tty_struct *tty, struct ktermios *old_termio
 #define MSR_RI		0x20
 #define MSR_DSR		0x40
 
-static int tiny_tiocmget(struct tty_struct *tty, struct file *file)
+static int tiny_tiocmget(struct tty_struct *tty)
 {
 	struct tiny_serial *tiny = tty->driver_data;
 
@@ -335,7 +336,7 @@ static int tiny_tiocmget(struct tty_struct *tty, struct file *file)
 	return result;
 }
 
-static int tiny_tiocmset(struct tty_struct *tty, struct file *file,
+static int tiny_tiocmset(struct tty_struct *tty,
                          unsigned int set, unsigned int clear)
 {
 	struct tiny_serial *tiny = tty->driver_data;
@@ -356,6 +357,7 @@ static int tiny_tiocmset(struct tty_struct *tty, struct file *file,
 	return 0;
 }
 
+#if 0
 static int tiny_read_proc(char *page, char **start, off_t off, int count,
                           int *eof, void *data)
 {
@@ -385,9 +387,10 @@ done:
 	*start = page + (off-begin);
 	return (count < begin+length-off) ? count : begin + length-off;
 }
+#endif
 
 #define tiny_ioctl tiny_ioctl_tiocgserial
-static int tiny_ioctl(struct tty_struct *tty, struct file *file,
+static int tiny_ioctl(struct tty_struct *tty,
                       unsigned int cmd, unsigned long arg)
 {
 	struct tiny_serial *tiny = tty->driver_data;
@@ -422,7 +425,7 @@ static int tiny_ioctl(struct tty_struct *tty, struct file *file,
 #undef tiny_ioctl
 
 #define tiny_ioctl tiny_ioctl_tiocmiwait
-static int tiny_ioctl(struct tty_struct *tty, struct file *file,
+static int tiny_ioctl(struct tty_struct *tty,
                       unsigned int cmd, unsigned long arg)
 {
 	struct tiny_serial *tiny = tty->driver_data;
@@ -462,7 +465,7 @@ static int tiny_ioctl(struct tty_struct *tty, struct file *file,
 #undef tiny_ioctl
 
 #define tiny_ioctl tiny_ioctl_tiocgicount
-static int tiny_ioctl(struct tty_struct *tty, struct file *file,
+static int tiny_ioctl(struct tty_struct *tty,
                       unsigned int cmd, unsigned long arg)
 {
 	struct tiny_serial *tiny = tty->driver_data;
@@ -492,16 +495,16 @@ static int tiny_ioctl(struct tty_struct *tty, struct file *file,
 #undef tiny_ioctl
 
 /* the real tiny_ioctl function.  The above is done to get the small functions in the book */
-static int tiny_ioctl(struct tty_struct *tty, struct file *file,
+static int tiny_ioctl(struct tty_struct *tty,
                       unsigned int cmd, unsigned long arg)
 {
 	switch (cmd) {
 	case TIOCGSERIAL:
-		return tiny_ioctl_tiocgserial(tty, file, cmd, arg);
+		return tiny_ioctl_tiocgserial(tty, cmd, arg);
 	case TIOCMIWAIT:
-		return tiny_ioctl_tiocmiwait(tty, file, cmd, arg);
+		return tiny_ioctl_tiocmiwait(tty, cmd, arg);
 	case TIOCGICOUNT:
-		return tiny_ioctl_tiocgicount(tty, file, cmd, arg);
+		return tiny_ioctl_tiocgicount(tty, cmd, arg);
 	}
 
 	return -ENOIOCTLCMD;
@@ -510,9 +513,12 @@ static int tiny_ioctl(struct tty_struct *tty, struct file *file,
 static struct tty_operations serial_ops = {
 	.open = tiny_open,
 	.close = tiny_close,
+	.ioctl = tiny_ioctl,
 	.write = tiny_write,
 	.write_room = tiny_write_room,
 	.set_termios = tiny_set_termios,
+	.tiocmget = tiny_tiocmget,
+	.tiocmset = tiny_tiocmset,
 };
 
 static struct tty_driver *tiny_tty_driver;
@@ -545,9 +551,11 @@ static int __init tiny_init(void)
 	 * real driver.  They really should be set up in the serial_ops
 	 * structure above... */
 	/* tiny_tty_driver->read_proc = tiny_read_proc; */
+#if 0
 	tiny_tty_driver->tiocmget = tiny_tiocmget;
 	tiny_tty_driver->tiocmset = tiny_tiocmset;
 	tiny_tty_driver->ioctl = tiny_ioctl;
+#endif
 
 	/* register the tty driver */
 	retval = tty_register_driver(tiny_tty_driver);
