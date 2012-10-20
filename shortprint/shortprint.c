@@ -29,9 +29,9 @@
 #include <linux/workqueue.h>
 #include <linux/timer.h>
 #include <linux/poll.h>
+#include <linux/io.h>
+#include <linux/semaphore.h>
 
-#include <asm/io.h>
-#include <asm/semaphore.h>
 #include <asm/atomic.h>
 
 #include "shortprint.h"
