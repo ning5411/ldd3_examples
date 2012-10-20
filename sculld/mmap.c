@@ -20,10 +20,13 @@
 #include <linux/semaphore.h>
 #include <linux/mm.h>		/* everything */
 #include <linux/errno.h>	/* error codes */
+#include <linux/fs.h>
+
 #include <asm/pgtable.h>
 
 #include "sculld.h"		/* local definitions */
 
+#define NOPAGE_SIGBUS   (NULL)
 
 /*
  * open and close: just keep track of how many times the device is
