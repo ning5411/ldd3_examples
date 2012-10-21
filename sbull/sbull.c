@@ -104,7 +104,7 @@ static void sbull_request(struct request_queue *q)
 {
 	struct request *req;
 
-	while ((req = elv_next_request(q)) != NULL) {
+	while ((req = blk_peek_request(q)) != NULL) {
 		struct sbull_dev *dev = req->rq_disk->private_data;
 		if (req->cmd_type != REQ_TYPE_FS) {
 			printk (KERN_NOTICE "Skip non-fs request\n");
@@ -115,7 +115,7 @@ static void sbull_request(struct request_queue *q)
     //    			dev - Devices, rq_data_dir(req),
     //    			req->sector, req->current_nr_sectors,
     //    			req->flags);
-		sbull_transfer(dev, req->sector, req->current_nr_sectors,
+		sbull_transfer(dev, blk_rq_pos(req), blk_rq_cur_sectors(req),
 				req->buffer, rq_data_dir(req));
 		end_request(req, 1);
 	}
@@ -150,7 +150,7 @@ static int sbull_xfer_request(struct sbull_dev *dev, struct request *req)
 	struct bio *bio;
 	int nsect = 0;
     
-	rq_for_each_bio(bio, req) {
+	__rq_for_each_bio(bio, req) {
 		sbull_xfer_bio(dev, bio);
 		nsect += bio->bi_size/KERNEL_SECTOR_SIZE;
 	}
@@ -168,15 +168,15 @@ static void sbull_full_request(struct request_queue *q)
 	int sectors_xferred;
 	struct sbull_dev *dev = q->queuedata;
 
-	while ((req = elv_next_request(q)) != NULL) {
-		if (! blk_fs_request(req)) {
+	while ((req = blk_peek_request(q)) != NULL) {
+		if (req->cmd_type != REQ_TYPE_FS) {
 			printk (KERN_NOTICE "Skip non-fs request\n");
 			end_request(req, 0);
 			continue;
 		}
 		sectors_xferred = sbull_xfer_request(dev, req);
 		if (! end_that_request_first(req, 1, sectors_xferred)) {
-			blkdev_dequeue_request(req);
+			blk_start_request(req);
 			end_that_request_last(req);
 		}
 	}
