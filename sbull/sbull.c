@@ -108,7 +108,7 @@ static void sbull_request(struct request_queue *q)
 		struct sbull_dev *dev = req->rq_disk->private_data;
 		if (req->cmd_type != REQ_TYPE_FS) {
 			printk (KERN_NOTICE "Skip non-fs request\n");
-			end_request(req, 0);
+			blk_end_request_cur(req, 0);
 			continue;
 		}
     //    	printk (KERN_NOTICE "Req dev %d dir %ld sec %ld, nr %d f %lx\n",
@@ -117,7 +117,7 @@ static void sbull_request(struct request_queue *q)
     //    			req->flags);
 		sbull_transfer(dev, blk_rq_pos(req), blk_rq_cur_sectors(req),
 				req->buffer, rq_data_dir(req));
-		end_request(req, 1);
+		blk_end_request_all(req, 1);
 	}
 }
 
@@ -171,7 +171,7 @@ static void sbull_full_request(struct request_queue *q)
 	while ((req = blk_peek_request(q)) != NULL) {
 		if (req->cmd_type != REQ_TYPE_FS) {
 			printk (KERN_NOTICE "Skip non-fs request\n");
-			end_request(req, 0);
+			blk_end_request_cur(req, 0);
 			continue;
 		}
 		sectors_xferred = sbull_xfer_request(dev, req);
@@ -187,14 +187,13 @@ static void sbull_full_request(struct request_queue *q)
 /*
  * The direct make request version.
  */
-static int sbull_make_request(struct request_queue *q, struct bio *bio)
+static void sbull_make_request(struct request_queue *q, struct bio *bio)
 {
 	struct sbull_dev *dev = q->queuedata;
 	int status;
 
 	status = sbull_xfer_bio(dev, bio);
 	bio_endio(bio, status);
-	return 0;
 }
 
 
@@ -372,7 +371,7 @@ static void setup_device(struct sbull_dev *dev, int which)
 			goto out_vfree;
 		break;
 	}
-	blk_queue_hardsect_size(dev->queue, hardsect_size);
+	blk_queue_logical_block_size(dev->queue, hardsect_size);
 	dev->queue->queuedata = dev;
 	/*
 	 * And the gendisk structure.
