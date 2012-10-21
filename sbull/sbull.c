@@ -106,7 +106,7 @@ static void sbull_request(struct request_queue *q)
 
 	while ((req = elv_next_request(q)) != NULL) {
 		struct sbull_dev *dev = req->rq_disk->private_data;
-		if (! blk_fs_request(req)) {
+		if (req->cmd_type != REQ_TYPE_FS) {
 			printk (KERN_NOTICE "Skip non-fs request\n");
 			end_request(req, 0);
 			continue;
